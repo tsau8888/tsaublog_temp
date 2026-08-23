@@ -1,0 +1,74 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 視覺維護原則：工具載入狀態採用既有中性色系與低對比光澤，避免與頁面既有設計語言衝突。 */
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 4rem;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply antialiased;
+    text-rendering: optimizeLegibility;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .tool-skeleton {
+    position: relative;
+    overflow: hidden;
+    border-radius: 0.5rem;
+    background: rgb(229 229 229 / 0.75);
+  }
+
+  .dark .tool-skeleton {
+    background: rgb(38 38 38 / 0.8);
+  }
+
+  .tool-skeleton::after {
+    position: absolute;
+    inset: 0;
+    content: "";
+    background: linear-gradient(90deg, transparent 0%, rgb(255 255 255 / 0.6) 50%, transparent 100%);
+    transform: translateX(-100%);
+    animation: tool-skeleton-shimmer 1.35s cubic-bezier(0.23, 1, 0.32, 1) infinite;
+  }
+
+  .dark .tool-skeleton::after {
+    background: linear-gradient(90deg, transparent 0%, rgb(255 255 255 / 0.1) 50%, transparent 100%);
+  }
+}
+
+@keyframes tool-skeleton-shimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tool-skeleton::after {
+    animation: none;
+    transform: none;
+  }
+}
+
+/* 響應式字體大小 */
+@layer base {
+  :root {
+    --font-scale: clamp(0.875, 0.875 + ((1vw - 3.75px) * 0.034), 1);
+    font-size: calc(16px * var(--font-scale));
+  }
+}
+
+/* 自定義媒體查詢 */
+@custom-media --mobile (max-width: 640px);
+@custom-media --tablet (min-width: 641px) and (max-width: 1024px);
+@custom-media --desktop (min-width: 1025px);

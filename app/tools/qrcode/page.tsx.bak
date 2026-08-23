@@ -1,0 +1,1480 @@
+"use client";
+
+import { saveAs } from "file-saver";
+import { 
+  FiDownload, FiUpload, FiImage, FiRefreshCw, FiCopy, FiCheck, FiMoon, FiSun,
+  FiGlobe, FiFileText, FiPhone, FiMessageSquare, FiMail, FiUser, FiWifi, FiMapPin, FiCalendar
+} from "react-icons/fi";
+import { LuQrCode, LuPalette, LuSparkles } from "react-icons/lu";
+import QRCodeStyling from "qr-code-styling";
+import { useEffect, useRef, useState, DragEvent } from "react";
+
+type DotsStyle = "square" | "dots" | "rounded" | "extra-rounded" | "classy" | "classy-rounded";
+type CornerStyle = "square" | "dot" | "extra-rounded";
+type GradientType = "linear" | "radial";
+type ContentType = "url" | "text" | "phone" | "sms" | "email" | "vcard" | "wifi" | "location" | "calendar";
+
+interface QRConfig {
+  data: string;
+  dotsColor: string;
+  dotsGradientColor1: string;
+  dotsGradientColor2: string;
+  dotsGradientEnabled: boolean;
+  dotsGradientType: GradientType;
+  backgroundColor: string;
+  cornersSquareColor: string;
+  cornersSquareStyle: CornerStyle;
+  cornersDotColor: string;
+  cornersDotStyle: CornerStyle;
+  dotsStyle: DotsStyle;
+  logoEnabled: boolean;
+  logo: string;
+  logoSize: number;
+  logoMargin: number;
+  logoClearEdges: boolean;
+  imageEnabled: boolean;
+  image: string;
+  imageSize: number;
+  imageMargin: number;
+  imageClearEdges: boolean;
+  errorCorrectionLevel: "L" | "M" | "Q" | "H";
+}
+
+interface ContentFormData {
+  // URL
+  url: string;
+  // Text
+  text: string;
+  // Phone
+  phone: string;
+  // SMS
+  smsPhone: string;
+  smsMessage: string;
+  // Email
+  email: string;
+  emailSubject: string;
+  emailBody: string;
+  // vCard
+  vcardFirstName: string;
+  vcardLastName: string;
+  vcardPhone: string;
+  vcardEmail: string;
+  vcardOrganization: string;
+  vcardTitle: string;
+  vcardAddress: string;
+  vcardWebsite: string;
+  vcardNote: string;
+  // WiFi
+  wifiSSID: string;
+  wifiPassword: string;
+  wifiEncryption: "WPA" | "WEP" | "nopass";
+  // Location
+  locationLat: string;
+  locationLng: string;
+  // Calendar
+  calendarTitle: string;
+  calendarLocation: string;
+  calendarStartDate: string;
+  calendarStartTime: string;
+  calendarEndDate: string;
+  calendarEndTime: string;
+  calendarDescription: string;
+}
+
+const defaultConfig: QRConfig = {
+  data: "https://example.com",
+  dotsColor: "#000000",
+  dotsGradientColor1: "#4F46E5",
+  dotsGradientColor2: "#EC4899",
+  dotsGradientEnabled: false,
+  dotsGradientType: "linear",
+  backgroundColor: "#FFFFFF",
+  cornersSquareColor: "#000000",
+  cornersSquareStyle: "extra-rounded",
+  cornersDotColor: "#000000",
+  cornersDotStyle: "dot",
+  dotsStyle: "rounded",
+  logoEnabled: false,
+  logo: "",
+  logoSize: 0.4,
+  logoMargin: 5,
+  logoClearEdges: true,
+  imageEnabled: false,
+  image: "",
+  imageSize: 0.4,
+  imageMargin: 5,
+  imageClearEdges: true,
+  errorCorrectionLevel: "H",
+};
+
+const defaultFormData: ContentFormData = {
+  url: "https://example.com",
+  text: "",
+  phone: "",
+  smsPhone: "",
+  smsMessage: "",
+  email: "",
+  emailSubject: "",
+  emailBody: "",
+  vcardFirstName: "",
+  vcardLastName: "",
+  vcardPhone: "",
+  vcardEmail: "",
+  vcardOrganization: "",
+  vcardTitle: "",
+  vcardAddress: "",
+  vcardWebsite: "",
+  vcardNote: "",
+  wifiSSID: "",
+  wifiPassword: "",
+  wifiEncryption: "WPA",
+  locationLat: "",
+  locationLng: "",
+  calendarTitle: "",
+  calendarLocation: "",
+  calendarStartDate: "",
+  calendarStartTime: "",
+  calendarEndDate: "",
+  calendarEndTime: "",
+  calendarDescription: "",
+};
+
+const contentTypes: { id: ContentType; label: string; icon: typeof FiGlobe | typeof FiPhone; description: string }[] = [
+  { id: "url", label: "網址", icon: FiGlobe, description: "網站連結" },
+  { id: "text", label: "純文字", icon: FiFileText, description: "文字內容" },
+  { id: "phone", label: "電話", icon: FiPhone, description: "電話號碼" },
+  { id: "sms", label: "簡訊", icon: FiMessageSquare, description: "發送簡訊" },
+  { id: "email", label: "電子郵件", icon: FiMail, description: "寄送郵件" },
+  { id: "vcard", label: "電子名片", icon: FiUser, description: "聯絡人資訊" },
+  { id: "wifi", label: "Wi-Fi", icon: FiWifi, description: "連線資訊" },
+  { id: "location", label: "地點", icon: FiMapPin, description: "GPS 座標" },
+  { id: "calendar", label: "行事曆", icon: FiCalendar, description: "事件邀請" },
+];
+
+const cuteColorPresets = [
+  { name: "粉嫩櫻花", dots: "#FFB7C5", corners: "#FF69B4", bg: "#FFF0F5" },
+  { name: "薄荷綠", dots: "#98D8C8", corners: "#2ECC71", bg: "#F0FFF0" },
+  { name: "奶油黃", dots: "#FFEAA7", corners: "#FDCB6E", bg: "#FFFBF0" },
+  { name: "薰衣草", dots: "#DDA0DD", corners: "#9B59B6", bg: "#F8F0FF" },
+  { name: "天空藍", dots: "#74B9FF", corners: "#3498DB", bg: "#F0F8FF" },
+  { name: "蜜桃橙", dots: "#FFBE76", corners: "#E17055", bg: "#FFF5EE" },
+];
+
+const modernColorPresets = [
+  { name: "極簡黑", dots: "#1a1a1a", corners: "#000000", bg: "#ffffff" },
+  { name: "午夜藍", dots: "#0f172a", corners: "#1e3a8a", bg: "#f8fafc" },
+  { name: "碳灰", dots: "#334155", corners: "#475569", bg: "#f1f5f9" },
+  { name: "純白", dots: "#ffffff", corners: "#e2e8f0", bg: "#0f172a" },
+  { name: "現代漸層", dots: "#6366f1", corners: "#8b5cf6", bg: "#ffffff" },
+];
+
+const dotsStyles: { value: DotsStyle; label: string; description: string }[] = [
+  { value: "square", label: "經典方塊", description: "傳統 QR Code 樣式" },
+  { value: "dots", label: "圓點", description: "現代圓點設計" },
+  { value: "rounded", label: "圓角方塊", description: "柔和的圓角方塊" },
+  { value: "extra-rounded", label: "超圓角", description: "可愛的圓角樣式" },
+  { value: "classy", label: "時尚", description: "時尚現代風格" },
+  { value: "classy-rounded", label: "時尚圓角", description: "圓潤的時尚風格" },
+];
+
+const cornerStyles: { value: CornerStyle; label: string }[] = [
+  { value: "square", label: "方塊" },
+  { value: "dot", label: "圓點" },
+  { value: "extra-rounded", label: "超圓角" },
+];
+
+// Generate QR data based on content type
+function generateQRData(type: ContentType, formData: ContentFormData): string {
+  switch (type) {
+    case "url":
+      return formData.url || "https://example.com";
+    case "text":
+      return formData.text;
+    case "phone":
+      return formData.phone ? `tel:${formData.phone}` : "";
+    case "sms":
+      if (formData.smsPhone) {
+        return formData.smsMessage 
+          ? `smsto:${formData.smsPhone}:${formData.smsMessage}`
+          : `smsto:${formData.smsPhone}`;
+      }
+      return "";
+    case "email":
+      if (formData.email) {
+        const parts: string[] = [formData.email];
+        if (formData.emailSubject) parts.push(`subject=${encodeURIComponent(formData.emailSubject)}`);
+        if (formData.emailBody) parts.push(`body=${encodeURIComponent(formData.emailBody)}`);
+        return `mailto:${parts.join("?")}`;
+      }
+      return "";
+    case "vcard":
+      const vcardParts: string[] = [];
+      if (formData.vcardFirstName || formData.vcardLastName) {
+        vcardParts.push(`N:${formData.vcardLastName || ""};${formData.vcardFirstName || ""};;;`);
+        vcardParts.push(`FN:${formData.vcardFirstName} ${formData.vcardLastName}`.trim());
+      }
+      if (formData.vcardPhone) vcardParts.push(`TEL;TYPE=CELL:${formData.vcardPhone}`);
+      if (formData.vcardEmail) vcardParts.push(`EMAIL:${formData.vcardEmail}`);
+      if (formData.vcardOrganization) vcardParts.push(`ORG:${formData.vcardOrganization}`);
+      if (formData.vcardTitle) vcardParts.push(`TITLE:${formData.vcardTitle}`);
+      if (formData.vcardAddress) vcardParts.push(`ADR:;;${formData.vcardAddress};;;;`);
+      if (formData.vcardWebsite) vcardParts.push(`URL:${formData.vcardWebsite}`);
+      if (formData.vcardNote) vcardParts.push(`NOTE:${formData.vcardNote}`);
+      
+      if (vcardParts.length > 0) {
+        return `BEGIN:VCARD\nVERSION:3.0\n${vcardParts.join("\n")}\nEND:VCARD`;
+      }
+      return "";
+    case "wifi":
+      if (formData.wifiSSID) {
+        const encryption = formData.wifiEncryption === "nopass" ? "nopass" : formData.wifiEncryption;
+        const passwordPart = formData.wifiEncryption !== "nopass" && formData.wifiPassword 
+          ? `;T:${encryption};P:${formData.wifiPassword}` 
+          : `;T:${encryption}`;
+        return `WIFI:T:${encryption};S:${formData.wifiSSID}${passwordPart};;`;
+      }
+      return "";
+    case "location":
+      if (formData.locationLat && formData.locationLng) {
+        return `geo:${formData.locationLat},${formData.locationLng}`;
+      }
+      return "";
+    case "calendar":
+      if (formData.calendarTitle) {
+        const formatDateTime = (date: string, time: string) => {
+          if (!date) return "";
+          const d = date.replace(/-/g, "");
+          const t = time ? time.replace(/:/g, "") : "0000";
+          return `${d}T${t}`;
+        };
+        
+        const start = formatDateTime(formData.calendarStartDate, formData.calendarStartTime);
+        const end = formatDateTime(formData.calendarEndDate, formData.calendarEndTime);
+        
+        const parts: string[] = [];
+        parts.push(`SUMMARY:${formData.calendarTitle}`);
+        if (start) parts.push(`DTSTART:${start}`);
+        if (end) parts.push(`DTEND:${end}`);
+        if (formData.calendarLocation) parts.push(`LOCATION:${formData.calendarLocation}`);
+        if (formData.calendarDescription) parts.push(`DESCRIPTION:${formData.calendarDescription}`);
+        
+        return `BEGIN:VEVENT\n${parts.join("\n")}\nEND:VEVENT`;
+      }
+      return "";
+    default:
+      return formData.url || "https://example.com";
+  }
+}
+
+export default function QRCodePage() {
+  const qrRef = useRef<HTMLDivElement>(null);
+  const qrCodeRef = useRef<QRCodeStyling | null>(null);
+  const [config, setConfig] = useState<QRConfig>(defaultConfig);
+  const [formData, setFormData] = useState<ContentFormData>(defaultFormData);
+  const [contentType, setContentType] = useState<ContentType>("url");
+  const [activeTab, setActiveTab] = useState<"content" | "style" | "logo" | "image">("content");
+  const [copied, setCopied] = useState(false);
+  const [logoPreview, setLogoPreview] = useState<string>("");
+  const [imagePreview, setImagePreview] = useState<string>("");
+  const [isDraggingLogo, setIsDraggingLogo] = useState(false);
+  const [isDraggingImage, setIsDraggingImage] = useState(false);
+
+  // Generate QR data when form data changes
+  useEffect(() => {
+    const qrData = generateQRData(contentType, formData);
+    setConfig(prev => ({ ...prev, data: qrData }));
+  }, [contentType, formData]);
+
+  // Initialize QR Code
+  useEffect(() => {
+    if (!qrRef.current) return;
+
+    const qrData = generateQRData(contentType, formData);
+
+    const qrCode = new QRCodeStyling({
+      width: 400,
+      height: 400,
+      type: "svg",
+      data: qrData,
+      image: config.imageEnabled && config.image ? config.image : config.logoEnabled ? config.logo : "",
+      dotsOptions: {
+        color: config.dotsGradientEnabled ? undefined : config.dotsColor,
+        type: config.dotsStyle,
+        gradient: config.dotsGradientEnabled ? {
+          type: config.dotsGradientType,
+          rotation: 0,
+          colorStops: [
+            { offset: 0, color: config.dotsGradientColor1 },
+            { offset: 1, color: config.dotsGradientColor2 }
+          ]
+        } : undefined,
+      },
+      backgroundOptions: {
+        color: config.backgroundColor,
+      },
+      cornersSquareOptions: {
+        color: config.cornersSquareColor,
+        type: config.cornersSquareStyle,
+      },
+      cornersDotOptions: {
+        color: config.cornersDotColor,
+        type: config.cornersDotStyle,
+      },
+      imageOptions: {
+        crossOrigin: "anonymous",
+        margin: config.imageMargin,
+        imageSize: config.imageSize,
+      },
+      qrOptions: {
+        errorCorrectionLevel: config.errorCorrectionLevel,
+      },
+    });
+
+    qrCode.append(qrRef.current);
+    qrCodeRef.current = qrCode;
+
+    return () => {
+      if (qrRef.current) {
+        qrRef.current.innerHTML = "";
+      }
+    };
+  }, []);
+
+  // Update QR Code when config changes
+  useEffect(() => {
+    if (!qrCodeRef.current) return;
+
+    const qrData = generateQRData(contentType, formData);
+
+    qrCodeRef.current.update({
+      data: qrData,
+      image: config.imageEnabled && config.image ? config.image : config.logoEnabled ? config.logo : "",
+      dotsOptions: {
+        color: config.dotsGradientEnabled ? undefined : config.dotsColor,
+        type: config.dotsStyle,
+        gradient: config.dotsGradientEnabled ? {
+          type: config.dotsGradientType,
+          rotation: 0,
+          colorStops: [
+            { offset: 0, color: config.dotsGradientColor1 },
+            { offset: 1, color: config.dotsGradientColor2 }
+          ]
+        } : undefined,
+      },
+      backgroundOptions: {
+        color: config.backgroundColor,
+      },
+      cornersSquareOptions: {
+        color: config.cornersSquareColor,
+        type: config.cornersSquareStyle,
+      },
+      cornersDotOptions: {
+        color: config.cornersDotColor,
+        type: config.cornersDotStyle,
+      },
+      imageOptions: {
+        crossOrigin: "anonymous",
+        margin: config.imageMargin,
+        imageSize: config.imageSize,
+      },
+      qrOptions: {
+        errorCorrectionLevel: config.errorCorrectionLevel,
+      },
+    });
+  }, [config, contentType, formData]);
+
+  const handleDownload = async (format: "png" | "svg") => {
+    if (!qrCodeRef.current) return;
+
+    const fileName = `qrcode_${Date.now()}`;
+    
+    if (format === "png") {
+      const blob = await qrCodeRef.current.getRawData("png") as Blob;
+      if (blob) {
+        saveAs(blob, `${fileName}.png`);
+      }
+    } else {
+      const blob = await qrCodeRef.current.getRawData("svg") as Blob;
+      if (blob) {
+        saveAs(blob, `${fileName}.svg`);
+      }
+    }
+  };
+
+  const handleCopyData = async () => {
+    const qrData = generateQRData(contentType, formData);
+    await navigator.clipboard.writeText(qrData);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      processLogoFile(file);
+    }
+  };
+
+  const processLogoFile = (file: File) => {
+    if (file && file.type.startsWith("image/")) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const result = event.target?.result as string;
+        setLogoPreview(result);
+        setConfig(prev => ({ ...prev, logo: result }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleLogoDragOver = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingLogo(true);
+  };
+
+  const handleLogoDragLeave = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingLogo(false);
+  };
+
+  const handleLogoDrop = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingLogo(false);
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      processLogoFile(file);
+    }
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      processImageFile(file);
+    }
+  };
+
+  const processImageFile = (file: File) => {
+    if (file && file.type.startsWith("image/")) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const result = event.target?.result as string;
+        setImagePreview(result);
+        setConfig(prev => ({ ...prev, image: result }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleImageDragOver = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingImage(true);
+  };
+
+  const handleImageDragLeave = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingImage(false);
+  };
+
+  const handleImageDrop = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingImage(false);
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      processImageFile(file);
+    }
+  };
+
+  const applyCutePreset = (preset: typeof cuteColorPresets[0]) => {
+    setConfig(prev => ({
+      ...prev,
+      dotsColor: preset.dots,
+      dotsGradientEnabled: false,
+      cornersSquareColor: preset.corners,
+      cornersDotColor: preset.corners,
+      backgroundColor: preset.bg,
+      dotsStyle: "extra-rounded",
+      cornersSquareStyle: "extra-rounded",
+      cornersDotStyle: "dot",
+    }));
+  };
+
+  const applyModernPreset = (preset: typeof modernColorPresets[0]) => {
+    setConfig(prev => ({
+      ...prev,
+      dotsColor: preset.dots,
+      dotsGradientEnabled: preset.name === "現代漸層",
+      dotsGradientColor1: "#6366f1",
+      dotsGradientColor2: "#8b5cf6",
+      cornersSquareColor: preset.corners,
+      cornersDotColor: preset.corners,
+      backgroundColor: preset.bg,
+      dotsStyle: "square",
+      cornersSquareStyle: "square",
+      cornersDotStyle: "square",
+    }));
+  };
+
+  const updateConfig = (key: keyof QRConfig, value: unknown) => {
+    setConfig(prev => ({ ...prev, [key]: value }));
+  };
+
+  const updateFormData = (key: keyof ContentFormData, value: string) => {
+    setFormData(prev => ({ ...prev, [key]: value }));
+  };
+
+  const handleContentTypeChange = (type: ContentType) => {
+    setContentType(type);
+    // Reset form data when switching types
+    setFormData(defaultFormData);
+  };
+
+  // Render content form based on selected type
+  const renderContentForm = () => {
+    switch (contentType) {
+      case "url":
+        return (
+          <div className="space-y-3">
+            <div>
+              <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                網址
+              </label>
+              <input
+                type="url"
+                value={formData.url}
+                onChange={(e) => updateFormData("url", e.target.value)}
+                placeholder="https://example.com"
+                className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-neutral-400 focus:outline-none focus:ring-1 focus:ring-neutral-400 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-50"
+              />
+            </div>
+          </div>
+        );
+      case "text":
+        return (
+          <div className="space-y-3">
+            <div>
+              <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                文字內容
+              </label>
+              <textarea
+                value={formData.text}
+                onChange={(e) => updateFormData("text", e.target.value)}
+                placeholder="輸入要顯示的文字..."
+                rows={4}
+                className="mt-1 w-full resize-none rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-neutral-400 focus:outline-none focus:ring-1 focus:ring-neutral-400 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-50"
+              />
+            </div>
+          </div>
+        );
+      case "phone":
+        return (
+          <div className="space-y-3">
+            <div>
+              <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                電話號碼
+              </label>
+              <input
+                type="tel"
+                value={formData.phone}
+                onChange={(e) => updateFormData("phone", e.target.value)}
+                placeholder="+886912345678"
+                className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-neutral-400 focus:outline-none focus:ring-1 focus:ring-neutral-400 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-50"
+              />
+              <p className="mt-1 text-xs text-neutral-500">掃描後可直接撥打電話</p>
+            </div>
+          </div>
+        );
+      case "sms":
+        return (
+          <div className="space-y-3">
+            <div>
+              <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                電話號碼
+              </label>
+              <input
+                type="tel"
+                value={formData.smsPhone}
+                onChange={(e) => updateFormData("smsPhone", e.target.value)}
+                placeholder="+886912345678"
+                className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-neutral-400 focus:outline-none focus:ring-1 focus:ring-neutral-400 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-50"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                簡訊內容
+              </label>
+              <textarea
+                value={formData.smsMessage}
+                onChange={(e) => updateFormData("smsMessage", e.target.value)}
+                placeholder="輸入預設訊息..."
+                rows={2}
+                className="mt-1 w-full resize-none rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-neutral-400 focus:outline-none focus:ring-1 focus:ring-neutral-400 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-50"
+              />
+            </div>
+          </div>
+        );
+      case "email":
+        return (
+          <div className="space-y-3">
+            <div>
+              <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                電子郵件
+              </label>
+              <input
+                type="email"
+                value={formData.email}
+                onChange={(e) => updateFormData("email", e.target.value)}
+                placeholder="example@email.com"
+                className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-neutral-400 focus:outline-none focus:ring-1 focus:ring-neutral-400 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-50"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                主旨（可選）
+              </label>
+              <input
+                type="text"
+                value={formData.emailSubject}
+                onChange={(e) => updateFormData("emailSubject", e.target.value)}
+                placeholder="郵件主旨"
+                className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-neutral-400 focus:outline-none focus:ring-1 focus:ring-neutral-400 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-50"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                內容（可選）
+              </label>
+              <textarea
+                value={formData.emailBody}
+                onChange={(e) => updateFormData("emailBody", e.target.value)}
+                placeholder="郵件內容"
+                rows={2}
+                className="mt-1 w-full resize-none rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-neutral-400 focus:outline-none focus:ring-1 focus:ring-neutral-400 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-50"
+              />
+            </div>
+          </div>
+        );
+      case "vcard":
+        return (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                  名字
+                </label>
+                <input
+                  type="text"
+                  value={formData.vcardFirstName}
+                  onChange={(e) => updateFormData("vcardFirstName", e.target.value)}
+                  placeholder="姓"
+                  className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-neutral-400 focus:outline-none focus:ring-1 focus:ring-neutral-400 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-50"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                  姓氏
+                </label>
+                <input
+                  type="text"
+                  value={formData.vcardLastName}
+                  onChange={(e) => updateFormData("vcardLastName", e.target.value)}
+                  placeholder="名"
+                  className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-neutral-400 focus:outline-none focus:ring-1 focus:ring-neutral-400 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-50"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                電話
+              </label>
+              <input
+                type="tel"
+                value={formData.vcardPhone}
+                onChange={(e) => updateFormData("vcardPhone", e.target.value)}
+                placeholder="+886912345678"
+                className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-neutral-400 focus:outline-none focus:ring-1 focus:ring-neutral-400 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-50"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                電子郵件
+              </label>
+              <input
+                type="email"
+                value={formData.vcardEmail}
+                onChange={(e) => updateFormData("vcardEmail", e.target.value)}
+                placeholder="example@email.com"
+                className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-neutral-400 focus:outline-none focus:ring-1 focus:ring-neutral-400 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-50"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                公司/組織
+              </label>
+              <input
+                type="text"
+                value={formData.vcardOrganization}
+                onChange={(e) => updateFormData("vcardOrganization", e.target.value)}
+                placeholder="公司名稱"
+                className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-neutral-400 focus:outline-none focus:ring-1 focus:ring-neutral-400 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-50"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                職位
+              </label>
+              <input
+                type="text"
+                value={formData.vcardTitle}
+                onChange={(e) => updateFormData("vcardTitle", e.target.value)}
+                placeholder="工程師"
+                className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-neutral-400 focus:outline-none focus:ring-1 focus:ring-neutral-400 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-50"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                地址
+              </label>
+              <input
+                type="text"
+                value={formData.vcardAddress}
+                onChange={(e) => updateFormData("vcardAddress", e.target.value)}
+                placeholder="台北市信義區..."
+                className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-neutral-400 focus:outline-none focus:ring-1 focus:ring-neutral-400 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-50"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                網站
+              </label>
+              <input
+                type="url"
+                value={formData.vcardWebsite}
+                onChange={(e) => updateFormData("vcardWebsite", e.target.value)}
+                placeholder="https://example.com"
+                className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-neutral-400 focus:outline-none focus:ring-1 focus:ring-neutral-400 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-50"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                備註
+              </label>
+              <textarea
+                value={formData.vcardNote}
+                onChange={(e) => updateFormData("vcardNote", e.target.value)}
+                placeholder="備註資訊"
+                rows={2}
+                className="mt-1 w-full resize-none rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-neutral-400 focus:outline-none focus:ring-1 focus:ring-neutral-400 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-50"
+              />
+            </div>
+          </div>
+        );
+      case "wifi":
+        return (
+          <div className="space-y-3">
+            <div>
+              <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                Wi-Fi 名稱 (SSID)
+              </label>
+              <input
+                type="text"
+                value={formData.wifiSSID}
+                onChange={(e) => updateFormData("wifiSSID", e.target.value)}
+                placeholder="Wi-Fi 網路名稱"
+                className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-neutral-400 focus:outline-none focus:ring-1 focus:ring-neutral-400 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-50"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                密碼
+              </label>
+              <input
+                type="text"
+                value={formData.wifiPassword}
+                onChange={(e) => updateFormData("wifiPassword", e.target.value)}
+                placeholder="Wi-Fi 密碼"
+                className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-neutral-400 focus:outline-none focus:ring-1 focus:ring-neutral-400 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-50"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                加密方式
+              </label>
+              <select
+                value={formData.wifiEncryption}
+                onChange={(e) => updateFormData("wifiEncryption", e.target.value as "WPA" | "WEP" | "nopass")}
+                className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-neutral-400 focus:outline-none dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-50"
+              >
+                <option value="WPA">WPA/WPA2</option>
+                <option value="WEP">WEP</option>
+                <option value="nopass">無密碼</option>
+              </select>
+            </div>
+          </div>
+        );
+      case "location":
+        return (
+          <div className="space-y-3">
+            <div>
+              <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                緯度 (Latitude)
+              </label>
+              <input
+                type="text"
+                value={formData.locationLat}
+                onChange={(e) => updateFormData("locationLat", e.target.value)}
+                placeholder="25.0339639"
+                className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-neutral-400 focus:outline-none focus:ring-1 focus:ring-neutral-400 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-50"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                經度 (Longitude)
+              </label>
+              <input
+                type="text"
+                value={formData.locationLng}
+                onChange={(e) => updateFormData("locationLng", e.target.value)}
+                placeholder="121.5624722"
+                className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-neutral-400 focus:outline-none focus:ring-1 focus:ring-neutral-400 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-50"
+              />
+            </div>
+            <p className="text-xs text-neutral-500">輸入座標後可在地圖應用程式中開啟位置</p>
+          </div>
+        );
+      case "calendar":
+        return (
+          <div className="space-y-3">
+            <div>
+              <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                事件標題
+              </label>
+              <input
+                type="text"
+                value={formData.calendarTitle}
+                onChange={(e) => updateFormData("calendarTitle", e.target.value)}
+                placeholder="會議、約會..."
+                className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-neutral-400 focus:outline-none focus:ring-1 focus:ring-neutral-400 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-50"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                地點
+              </label>
+              <input
+                type="text"
+                value={formData.calendarLocation}
+                onChange={(e) => updateFormData("calendarLocation", e.target.value)}
+                placeholder="會議室、地址..."
+                className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-neutral-400 focus:outline-none focus:ring-1 focus:ring-neutral-400 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-50"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                  開始日期
+                </label>
+                <input
+                  type="date"
+                  value={formData.calendarStartDate}
+                  onChange={(e) => updateFormData("calendarStartDate", e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-neutral-400 focus:outline-none focus:ring-1 focus:ring-neutral-400 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-50"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                  開始時間
+                </label>
+                <input
+                  type="time"
+                  value={formData.calendarStartTime}
+                  onChange={(e) => updateFormData("calendarStartTime", e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-neutral-400 focus:outline-none focus:ring-1 focus:ring-neutral-400 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-50"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                  結束日期
+                </label>
+                <input
+                  type="date"
+                  value={formData.calendarEndDate}
+                  onChange={(e) => updateFormData("calendarEndDate", e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-neutral-400 focus:outline-none focus:ring-1 focus:ring-neutral-400 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-50"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                  結束時間
+                </label>
+                <input
+                  type="time"
+                  value={formData.calendarEndTime}
+                  onChange={(e) => updateFormData("calendarEndTime", e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-neutral-400 focus:outline-none focus:ring-1 focus:ring-neutral-400 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-50"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                描述
+              </label>
+              <textarea
+                value={formData.calendarDescription}
+                onChange={(e) => updateFormData("calendarDescription", e.target.value)}
+                placeholder="事件描述..."
+                rows={2}
+                className="mt-1 w-full resize-none rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-neutral-400 focus:outline-none focus:ring-1 focus:ring-neutral-400 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-50"
+              />
+            </div>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* 頁面標題 */}
+      <div className="space-y-2">
+        <h1 className="text-3xl font-bold tracking-tight text-neutral-900 dark:text-neutral-50">
+          QR Code 產生器
+        </h1>
+        <p className="text-neutral-600 dark:text-neutral-400">
+          產生可愛風格、現代風格的 QR Code，支援中間圖片和多樣化自訂
+        </p>
+      </div>
+
+      <div className="grid gap-8 lg:grid-cols-3">
+        {/* 左側：預覽（加大） */}
+        <div className="lg:col-span-2">
+          <div className="sticky top-4">
+            <div className="rounded-lg border border-neutral-200 bg-white p-3 dark:border-neutral-800 dark:bg-neutral-900">
+              <div className="mb-2 flex items-center justify-between">
+                <h3 className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                  預覽
+                </h3>
+                <button
+                  onClick={() => {
+                    setConfig(defaultConfig);
+                    setFormData(defaultFormData);
+                    setContentType("url");
+                  }}
+                  className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-neutral-500 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
+                >
+                  <FiRefreshCw className="size-3" />
+                  重置
+                </button>
+              </div>
+              
+              <div className="flex justify-center overflow-hidden">
+                <div ref={qrRef} className="qr-code-container size-[320px] sm:size-[400px] md:size-[480px] lg:size-[560px]" />
+              </div>
+
+              <div className="mt-2 flex gap-3">
+                <button
+                  onClick={() => handleDownload("png")}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-neutral-900 py-3 text-sm font-medium text-white hover:bg-neutral-800 dark:bg-neutral-50 dark:text-neutral-900 dark:hover:bg-neutral-200"
+                >
+                  <FiDownload className="size-5" />
+                  下載 PNG
+                </button>
+                <button
+                  onClick={() => handleDownload("svg")}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-neutral-200 py-3 text-sm font-medium text-neutral-700 hover:bg-neutral-50 dark:border-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-800"
+                >
+                  <FiDownload className="size-5" />
+                  下載 SVG
+                </button>
+              </div>
+            </div>
+
+            {/* 提示 */}
+            <div className="mt-3 rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-900/50 dark:bg-blue-900/20">
+              <h4 className="font-medium text-blue-800 dark:text-blue-200">
+                使用提示
+              </h4>
+              <ul className="mt-2 list-inside list-disc text-sm text-blue-700 dark:text-blue-300">
+                <li>中間有圖片時，建議將錯誤修正等級設為「高」</li>
+                <li>可愛風格建議使用「超圓角」點陣樣式</li>
+                <li>Logo 和中間圖片，建議使用 PNG 透明背景格式</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        {/* 右側：控制面板 */}
+        <div className="space-y-4">
+          {/* 標籤導航 */}
+          <div className="flex flex-wrap gap-2 rounded-lg border border-neutral-200 bg-neutral-50 p-1 dark:border-neutral-800 dark:bg-neutral-900">
+            {[
+              { id: "content", label: "內容", icon: LuQrCode },
+              { id: "style", label: "樣式", icon: LuPalette },
+              { id: "logo", label: "Logo", icon: LuSparkles },
+              { id: "image", label: "中間圖片", icon: FiImage },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as typeof activeTab)}
+                className={`flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-all ${
+                  activeTab === tab.id
+                    ? "bg-white text-neutral-900 shadow-sm dark:bg-neutral-800 dark:text-neutral-50"
+                    : "text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-50"
+                }`}
+              >
+                <tab.icon className="size-4" />
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* 內容設定 */}
+          {activeTab === "content" && (
+            <div className="space-y-4 rounded-lg border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
+              {/* 內容類型選擇 */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                  選擇內容類型
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {contentTypes.map((type) => (
+                    <button
+                      key={type.id}
+                      onClick={() => handleContentTypeChange(type.id)}
+                      className={`flex flex-col items-center justify-center rounded-lg border p-2 text-center transition-all ${
+                        contentType === type.id
+                          ? "border-neutral-900 bg-neutral-900 text-white dark:border-neutral-50 dark:bg-neutral-50 dark:text-neutral-900"
+                          : "border-neutral-200 bg-white hover:border-neutral-300 dark:border-neutral-800 dark:bg-neutral-950 dark:hover:border-neutral-700"
+                      }`}
+                    >
+                      <type.icon className="size-5 mb-1" />
+                      <span className="text-xs font-medium">{type.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 內容表單 */}
+              {renderContentForm()}
+
+              {/* 錯誤修正等級 */}
+              <div className="space-y-2 pt-3 border-t border-neutral-200 dark:border-neutral-800">
+                <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                  錯誤修正等級
+                </label>
+                <select
+                  value={config.errorCorrectionLevel}
+                  onChange={(e) => updateConfig("errorCorrectionLevel", e.target.value)}
+                  className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-neutral-400 focus:outline-none dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-50"
+                >
+                  <option value="L">低 (7%)</option>
+                  <option value="M">中 (15%)</option>
+                  <option value="Q">較高 (25%)</option>
+                  <option value="H">高 (30%) - 推薦中間有圖片時使用</option>
+                </select>
+              </div>
+
+              {/* 複製按鈕 */}
+              <div className="flex gap-2 pt-3 border-t border-neutral-200 dark:border-neutral-800">
+                <button
+                  onClick={handleCopyData}
+                  className="flex items-center gap-1 rounded-md px-3 py-2 text-sm text-neutral-500 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800 w-full justify-center"
+                >
+                  {copied ? <FiCheck className="size-4" /> : <FiCopy className="size-4" />}
+                  {copied ? "已複製" : "複製內容"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* 樣式設定 */}
+          {activeTab === "style" && (
+            <div className="space-y-4 rounded-lg border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
+              {/* 點陣樣式 */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                  點陣樣式
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {dotsStyles.map((style) => (
+                    <button
+                      key={style.value}
+                      onClick={() => updateConfig("dotsStyle", style.value)}
+                      className={`rounded-lg border p-3 text-left transition-all ${
+                        config.dotsStyle === style.value
+                          ? "border-neutral-900 bg-neutral-900 text-white dark:border-neutral-50 dark:bg-neutral-50 dark:text-neutral-900"
+                          : "border-neutral-200 bg-white hover:border-neutral-300 dark:border-neutral-800 dark:bg-neutral-950 dark:hover:border-neutral-700"
+                      }`}
+                    >
+                      <div className="font-medium text-sm">{style.label}</div>
+                      <div className="text-xs opacity-70">{style.description}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 角落樣式 */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                  角落方塊樣式
+                </label>
+                <div className="flex gap-2">
+                  {cornerStyles.map((style) => (
+                    <button
+                      key={style.value}
+                      onClick={() => updateConfig("cornersSquareStyle", style.value)}
+                      className={`flex-1 rounded-lg border p-2 text-sm font-medium transition-all ${
+                        config.cornersSquareStyle === style.value
+                          ? "border-neutral-900 bg-neutral-900 text-white dark:border-neutral-50 dark:bg-neutral-50 dark:text-neutral-900"
+                          : "border-neutral-200 bg-white hover:border-neutral-300 dark:border-neutral-800 dark:bg-neutral-950 dark:hover:border-neutral-700"
+                      }`}
+                    >
+                      {style.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 角落圓點樣式 */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                  角落圓點樣式
+                </label>
+                <div className="flex gap-2">
+                  {cornerStyles.map((style) => (
+                    <button
+                      key={style.value}
+                      onClick={() => updateConfig("cornersDotStyle", style.value)}
+                      className={`flex-1 rounded-lg border p-2 text-sm font-medium transition-all ${
+                        config.cornersDotStyle === style.value
+                          ? "border-neutral-900 bg-neutral-900 text-white dark:border-neutral-50 dark:bg-neutral-50 dark:text-neutral-900"
+                          : "border-neutral-200 bg-white hover:border-neutral-300 dark:border-neutral-800 dark:bg-neutral-950 dark:hover:border-neutral-700"
+                      }`}
+                    >
+                      {style.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 顏色設定 */}
+              <div className="space-y-3">
+                <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                  顏色設定
+                </label>
+                
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={config.dotsGradientEnabled}
+                    onChange={(e) => updateConfig("dotsGradientEnabled", e.target.checked)}
+                    className="rounded border-neutral-300"
+                  />
+                  <span className="text-sm text-neutral-600 dark:text-neutral-400">啟用漸層</span>
+                </div>
+
+                {config.dotsGradientEnabled ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-neutral-500">漸層起始色</label>
+                      <input
+                        type="color"
+                        value={config.dotsGradientColor1}
+                        onChange={(e) => updateConfig("dotsGradientColor1", e.target.value)}
+                        className="mt-1 h-10 w-full cursor-pointer rounded border"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-neutral-500">漸層結束色</label>
+                      <input
+                        type="color"
+                        value={config.dotsGradientColor2}
+                        onChange={(e) => updateConfig("dotsGradientColor2", e.target.value)}
+                        className="mt-1 h-10 w-full cursor-pointer rounded border"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="text-xs text-neutral-500">點陣顏色</label>
+                      <input
+                        type="color"
+                        value={config.dotsColor}
+                        onChange={(e) => updateConfig("dotsColor", e.target.value)}
+                        className="mt-1 h-10 w-full cursor-pointer rounded border"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-neutral-500">角落顏色</label>
+                      <input
+                        type="color"
+                        value={config.cornersSquareColor}
+                        onChange={(e) => updateConfig("cornersSquareColor", e.target.value)}
+                        className="mt-1 h-10 w-full cursor-pointer rounded border"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-neutral-500">背景顏色</label>
+                      <input
+                        type="color"
+                        value={config.backgroundColor}
+                        onChange={(e) => updateConfig("backgroundColor", e.target.value)}
+                        className="mt-1 h-10 w-full cursor-pointer rounded border"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 預設配色 */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                  可愛風格配色
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {cuteColorPresets.map((preset) => (
+                    <button
+                      key={preset.name}
+                      onClick={() => applyCutePreset(preset)}
+                      className="flex items-center gap-2 rounded-full border border-neutral-200 px-3 py-1 text-xs hover:bg-neutral-50 dark:border-neutral-800 dark:hover:bg-neutral-800"
+                    >
+                      <div className="size-4 rounded-full" style={{ backgroundColor: preset.dots }} />
+                      {preset.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                  現代風格配色
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {modernColorPresets.map((preset) => (
+                    <button
+                      key={preset.name}
+                      onClick={() => applyModernPreset(preset)}
+                      className="flex items-center gap-2 rounded-full border border-neutral-200 px-3 py-1 text-xs hover:bg-neutral-50 dark:border-neutral-800 dark:hover:bg-neutral-800"
+                    >
+                      <div className="size-4 rounded-full" style={{ backgroundColor: preset.dots }} />
+                      {preset.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Logo 設定 */}
+          {activeTab === "logo" && (
+            <div className="space-y-4 rounded-lg border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={config.logoEnabled}
+                  onChange={(e) => updateConfig("logoEnabled", e.target.checked)}
+                  className="rounded border-neutral-300"
+                />
+                <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                  啟用 Logo
+                </span>
+              </div>
+
+              {config.logoEnabled && (
+                <>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                      上傳 Logo 圖片
+                    </label>
+                    <div 
+                      className={`relative flex items-center gap-3 rounded-lg border-2 border-dashed p-4 transition-colors ${
+                        isDraggingLogo 
+                          ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20" 
+                          : "border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-950"
+                      }`}
+                      onDragOver={handleLogoDragOver}
+                      onDragLeave={handleLogoDragLeave}
+                      onDrop={handleLogoDrop}
+                    >
+                      <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-neutral-200 bg-white px-4 py-2 text-sm hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800 dark:hover:bg-neutral-700">
+                        <FiUpload className="size-4" />
+                        選擇檔案
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleLogoUpload}
+                          className="hidden"
+                        />
+                      </label>
+                      <span className="text-sm text-neutral-500 dark:text-neutral-400">
+                        或拖放圖片到這裡
+                      </span>
+                      {logoPreview && (
+                        <span className="ml-auto text-sm text-green-600">已選擇圖片</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {logoPreview && (
+                    <div className="space-y-3">
+                      <div>
+                        <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                          Logo 大小: {Math.round(config.logoSize * 100)}%
+                        </label>
+                        <input
+                          type="range"
+                          min="0.1"
+                          max="0.5"
+                          step="0.05"
+                          value={config.logoSize}
+                          onChange={(e) => updateConfig("logoSize", parseFloat(e.target.value))}
+                          className="mt-1 w-full"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                          Logo 邊距: {config.logoMargin}px
+                        </label>
+                        <input
+                          type="range"
+                          min="0"
+                          max="20"
+                          step="1"
+                          value={config.logoMargin}
+                          onChange={(e) => updateConfig("logoMargin", parseInt(e.target.value))}
+                          className="mt-1 w-full"
+                        />
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={config.logoClearEdges}
+                          onChange={(e) => updateConfig("logoClearEdges", e.target.checked)}
+                          className="rounded border-neutral-300"
+                        />
+                        <span className="text-sm text-neutral-600 dark:text-neutral-400">
+                          清除 Logo 邊緣背景
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
+          {/* 中間圖片設定 */}
+          {activeTab === "image" && (
+            <div className="space-y-4 rounded-lg border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={config.imageEnabled}
+                  onChange={(e) => updateConfig("imageEnabled", e.target.checked)}
+                  className="rounded border-neutral-300"
+                />
+                <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                  啟用中間圖片
+                </span>
+              </div>
+
+              {config.imageEnabled && (
+                <>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                      上傳中間圖片
+                    </label>
+                    <div 
+                      className={`relative flex items-center gap-3 rounded-lg border-2 border-dashed p-4 transition-colors ${
+                        isDraggingImage 
+                          ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20" 
+                          : "border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-950"
+                      }`}
+                      onDragOver={handleImageDragOver}
+                      onDragLeave={handleImageDragLeave}
+                      onDrop={handleImageDrop}
+                    >
+                      <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-neutral-200 bg-white px-4 py-2 text-sm hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800 dark:hover:bg-neutral-700">
+                        <FiUpload className="size-4" />
+                        選擇檔案
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleImageUpload}
+                          className="hidden"
+                        />
+                      </label>
+                      <span className="text-sm text-neutral-500 dark:text-neutral-400">
+                        或拖放圖片到這裡
+                      </span>
+                      {imagePreview && (
+                        <span className="ml-auto text-sm text-green-600">已選擇圖片</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {imagePreview && (
+                    <div className="space-y-3">
+                      <div>
+                        <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                          圖片大小: {Math.round(config.imageSize * 100)}%
+                        </label>
+                        <input
+                          type="range"
+                          min="0.1"
+                          max="0.5"
+                          step="0.05"
+                          value={config.imageSize}
+                          onChange={(e) => updateConfig("imageSize", parseFloat(e.target.value))}
+                          className="mt-1 w-full"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                          圖片邊距: {config.imageMargin}px
+                        </label>
+                        <input
+                          type="range"
+                          min="0"
+                          max="20"
+                          step="1"
+                          value={config.imageMargin}
+                          onChange={(e) => updateConfig("imageMargin", parseInt(e.target.value))}
+                          className="mt-1 w-full"
+                        />
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={config.imageClearEdges}
+                          onChange={(e) => updateConfig("imageClearEdges", e.target.checked)}
+                          className="rounded border-neutral-300"
+                        />
+                        <span className="text-sm text-neutral-600 dark:text-neutral-400">
+                          清除圖片邊緣背景
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
