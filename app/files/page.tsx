@@ -76,6 +76,15 @@ function getFileIcon(filename: string) {
   return File;
 }
 
+function getFileDownloadUrl(filePath: string): string {
+  const safeSegments = filePath
+    .split("/")
+    .filter((segment) => segment && segment !== "." && segment !== "..")
+    .map((segment) => encodeURIComponent(segment));
+
+  return `/file/${safeSegments.join("/")}`;
+}
+
 function SHA256Display({ sha256 }: { sha256: string }) {
   const [copied, setCopied] = useState(false);
 
@@ -132,7 +141,7 @@ export default function FileSharePage() {
     async function loadFiles() {
       try {
         setLoading(true);
-        const response = await fetch("/file-manifest.json");
+        const response = await fetch("/file-manifest.json", { cache: "no-store" });
         if (!response.ok) {
           throw new Error("無法載入檔案列表");
         }
@@ -239,6 +248,11 @@ export default function FileSharePage() {
           <p className="text-neutral-600 dark:text-neutral-400">
             {currentPath.length === 0 ? "目前沒有分享的檔案" : "此資料夾為空"}
           </p>
+          {currentPath.length === 0 && (
+            <p className="mt-2 text-sm text-neutral-500">
+              部署者可將要分享的實際檔案放入 <code>public/file</code>，建置時會自動建立下載清單。
+            </p>
+          )}
         </div>
       ) : (
         <motion.div
@@ -275,9 +289,8 @@ export default function FileSharePage() {
                 return (
                   <motion.div key={file.path} variants={itemVariants}>
                     <a
-                      href={`/file/${file.path}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                      href={getFileDownloadUrl(file.path)}
+                      download={file.name}
                       className="flex items-center gap-3 rounded-lg px-4 py-3 text-left hover:bg-neutral-50 dark:hover:bg-neutral-900"
                     >
                       <Icon className="size-5 text-neutral-500" />
